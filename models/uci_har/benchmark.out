@@ -1,0 +1,12 @@
+Results for ./post_training_integer_quantization/model_quant.tflite:
+{"Init": 665, "First Inference": 14, "Warmup (avg)": 1.24318, "Inference (avg)": 1.17568, "Model Size (MB)": 0.005216, "Init Memory (MB)": 3.1875, "Overall Memory (MB)": 3.375}
+Results for ./quantization_aware_training/model_quant.tflite:
+{"Init": 546, "First Inference": 17, "Warmup (avg)": 0.265423, "Inference (avg)": 0.286699, "Model Size (MB)": 0.005528, "Init Memory (MB)": 3.1875, "Overall Memory (MB)": 3.375}
+Results for ./post_training_float16_quantization/model_quant_f16.tflite:
+{"Init": 643, "First Inference": 15, "Warmup (avg)": 0.954503, "Inference (avg)": 0.83207, "Model Size (MB)": 0.008412, "Init Memory (MB)": 3, "Overall Memory (MB)": 3.375}
+Results for post_training_float16_quantization/initial_model.tflite:
+{"Init": 699, "First Inference": 14, "Warmup (avg)": 1.02604, "Inference (avg)": 1.35766, "Model Size (MB)": 0.014768, "Init Memory (MB)": 3.1875, "Overall Memory (MB)": 3.375}
+Results for ./post_training_dynamic_range_quantization/model_quant.tflite:
+{"Init": 846, "First Inference": 28, "Warmup (avg)": 0.286745, "Inference (avg)": 0.317245, "Model Size (MB)": 0.004776, "Init Memory (MB)": 3, "Overall Memory (MB)": 3.375}
+Results for ./post_training_16x8_quantization/model_quant.tflite:
+{"Init": 521, "First Inference": 9, "Warmup (avg)": 1.74526, "Inference (avg)": 2.11007, "Model Size (MB)": 0.005288, "Init Memory (MB)": 3, "Overall Memory (MB)": 3}
