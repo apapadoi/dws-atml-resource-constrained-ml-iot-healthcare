@@ -1,0 +1,3 @@
+chronos-t5-small original avg RMSE: 27.68684438893133
+chronos-t5-small 4bits avg RMSE: 28.20140411059841
+chronos-t5-small 8bits avg RMSE: 27.763014299522094
