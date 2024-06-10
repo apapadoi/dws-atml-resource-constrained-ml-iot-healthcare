@@ -1,0 +1,6 @@
+Arguments: Namespace(chronos_model='tiny', context_hours=48, prediction_hours=6, train_ratio=0.98, val_ratio=0.01, test_ratio=0.01, per_device_train_batch_size=128, per_device_eval_batch_size=32, learning_rate=0.001, lr_scheduler='cosine', log_steps=20, new_model_name=None, push_to_hub=True, early_stopping_patience=4, num_epochs=1000)
+The token has not been saved to the git credentials helper. Pass `add_to_git_credential=True` in this function directly or `--add-to-git-credential` if using via `huggingface-cli` if you want to set the git credential as well.
+Token is valid (permission: write).
+Your token has been saved to C:\Users\mosch\.cache\huggingface\token
+Login successful
+Loading datasets...
