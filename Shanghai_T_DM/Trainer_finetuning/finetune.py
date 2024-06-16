@@ -13,6 +13,9 @@ import ast
 import torch._dynamo
 from huggingface_hub import login
 import sys
+import pickle
+from peft import LoraConfig, get_peft_model
+import evaluate
 
 # Ignore all warnings
 warnings.filterwarnings("ignore")
@@ -48,38 +51,61 @@ class Logger:
 sys.stdout = Logger()
 sys.stderr = Logger()
 
+def print_trainable_parameters(model):
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param:.2f}"
+    )
+
 def configure_and_train(
     chronos_model='small',
     context_hours=48,
     prediction_hours=6,
-    train_ratio=0.9,
-    val_ratio=0.05,
-    test_ratio=0.05,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    train_ratio=0.98,
+    val_ratio=0.01,
+    test_ratio=0.01,
+    per_device_train_batch_size=128,
+    per_device_eval_batch_size=32,
     learning_rate=0.0001,
-    lr_scheduler='linear',
-    log_steps=200,
+    lr_scheduler='polynomial',
+    log_steps=100,
     new_model_name=None,
     push_to_hub=False,
-    early_stopping_patience=10,
-    num_epochs=5
+    early_stopping_patience=30,
+    num_epochs=100,
+    dataset='ShanghaiT1DM',
+    train_with_lora=False,
+    lora_option=1,
 ):
+    
+    print(f'train with lora: {train_with_lora}')
+    print(f'dataset: {dataset}')
+    assert(dataset in ['ShanghaiT1DM','ShanghaiT2DM','Patient0','Dinamo_Shanghai_T1DM'])
+
     model_dict = {
         'tiny': ('amazon/chronos-t5-tiny', 'chronos_config/chronos-t5-tiny.yaml'),
         'mini': ('amazon/chronos-t5-mini', 'chronos_config/chronos-t5-mini.yaml'),
         'small': ('amazon/chronos-t5-small', 'chronos_config/chronos-t5-small.yaml'),
         'base': ('amazon/chronos-t5-base', 'chronos_config/chronos-t5-base.yaml'),
-        'large': ('amazon/chronos-t5-large', 'chronos_config/chronos-t5-large.yaml')
+        'large': ('amazon/chronos-t5-large', 'chronos_config/chronos-t5-large.yaml'),
+        'finetuned_tiny_1': ('moschouChry/finetuned-chronos-tiny-type-1', 'chronos_config/chronos-t5-tiny.yaml'),
+        'finetuned_tiny_2': ('moschouChry/finetuned-chronos-tiny-type-2', 'chronos_config/chronos-t5-tiny.yaml'),
+        'finetuned_small_1': ('moschouChry/finetuned-chronos-small-type-1', 'chronos_config/chronos-t5-small.yaml'),
+        'finetuned_small_2': ('moschouChry/finetuned-chronos-small-type-2', 'chronos_config/chronos-t5-small.yaml'),
     }
     
     model_name, file_path = model_dict[chronos_model]
     
     if push_to_hub:
         if new_model_name is None:
-            new_model_name = f'moschouChry/chronos-t5-{chronos_model}-fine-tuned_{timestamp}'
+            new_model_name = f'moschouChry/chronos-t5-{chronos_model}-{dataset}-fine-tuned_{timestamp}'
         # Login to Hugging Face Hub
-        access_token = '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'
+        access_token = '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'
         login(token=access_token)
 
     context_window = context_hours * 4  # Assuming 4 samples per hour
@@ -105,6 +131,7 @@ def configure_and_train(
 
     if config['tf32'] and not (torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8):
         config['tf32'] = False
+
 
     seed = random.randint(0, 2**32)
     transformers.set_seed(seed=seed)
@@ -146,7 +173,56 @@ def configure_and_train(
 
     model.config.chronos_config = chronos_config.__dict__
 
-    train_dataset,val_dataset,test_dataset = create_dataloaders(train_ratio,val_ratio,test_ratio,context_window,prediction_window, chronos_config)
+    # Load the dictionary from the file
+    with open('dataset_dictionary.pkl', 'rb') as file:
+        loaded_data_dict = pickle.load(file)
+
+    data = loaded_data_dict[dataset]
+    dataset_name = dataset
+
+    split_ratios = [train_ratio,val_ratio,test_ratio]
+    train_dataset,val_dataset,test_dataset = create_dataloaders(dataset_name,data,split_ratios,context_window,prediction_window, chronos_config)
+
+    print(f"Trainable parameters without lora")
+    print_trainable_parameters(model)
+    
+    if train_with_lora:
+        if lora_option == 1:
+            print(f"Trainable parameters with lora 1")
+            lora_config = LoraConfig(
+                task_type='seq2seq',
+                r=4,
+                lora_alpha=8,
+                lora_dropout=0.1,
+            )
+        elif lora_option == 2:
+            print(f"Trainable parameters with lora 2")
+            lora_config = LoraConfig(
+                task_type='seq2seq',
+                r=8,
+                lora_alpha=16,
+                lora_dropout=0.1,
+            )
+        elif lora_option == 3:
+            print(f"Trainable parameters with lora 3")
+            lora_config = LoraConfig(
+                task_type='seq2seq',
+                r=16,
+                lora_alpha=32,
+                lora_dropout=0.1,
+            )
+        elif lora_option == 4:
+            print(f"Trainable parameters with lora 4")
+            lora_config = LoraConfig(
+                task_type='seq2seq',
+                r=128,
+                lora_alpha=256,
+                lora_dropout=0.1,
+            )
+        lora_model = get_peft_model(model, lora_config)
+        print_trainable_parameters(lora_model)
+        model = lora_model
+
 
     training_args = TrainingArguments(
         output_dir=str(output_dir),
@@ -155,21 +231,19 @@ def configure_and_train(
         per_device_eval_batch_size=per_device_eval_batch_size,
         learning_rate=learning_rate,
         lr_scheduler_type=lr_scheduler,
-        warmup_ratio=0.1,
         optim='adamw_torch_fused',
         logging_dir=str(output_dir / "logs"),
-        logging_strategy="steps",
+        logging_strategy="epoch",
         logging_steps=log_steps,
-        save_strategy="steps",
-        save_steps=log_steps,
+        save_strategy="epoch",
         report_to=["tensorboard"],
         tf32=config['tf32'],
         torch_compile=config['torch_compile'],
-        ddp_find_unused_parameters=False,
-        remove_unused_columns=False,
-        eval_strategy="steps",
-        metric_for_best_model='eval_loss',
-        load_best_model_at_end=True
+        evaluation_strategy="epoch",
+        metric_for_best_model='loss',
+        load_best_model_at_end=True,
+        save_total_limit=10,
+        label_names=['labels'],
     )
 
     early_stopping_callback = EarlyStoppingCallback(
@@ -182,40 +256,47 @@ def configure_and_train(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        callbacks=[early_stopping_callback]
+        callbacks=[early_stopping_callback],
     )
 
     print("Starting training...")
     trainer.train()
 
-    plot_loss(trainer.state.log_history, args)
-    plot_learning_rate(trainer.state.log_history, args)
-    save_log_history(trainer.state.log_history)
+    plot_loss(trainer.state.log_history, args, timestamp)
+    plot_learning_rate(trainer.state.log_history, args, timestamp)
+    save_log_history(trainer.state.log_history,timestamp)
     print('Training completed')
     print(f'Training and evaluation loss plot saved')
 
     if push_to_hub:
         print("Pushing model to hub...")
-        model.push_to_hub(new_model_name)
+        if train_with_lora:
+            merged_model = model.merge_and_unload()
+            merged_model.push_to_hub(new_model_name)
+        else:
+            model.push_to_hub(new_model_name)
         print(f"Model pushed to hub. New model name: {new_model_name}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train a Chronos model with user-defined parameters.")
-    parser.add_argument('--chronos_model', type=str, default='small', choices=['tiny', 'mini', 'small', 'base', 'large'])
-    parser.add_argument('--context_hours', type=int, default=48)
-    parser.add_argument('--prediction_hours', type=int, default=6)
-    parser.add_argument('--train_ratio', type=float, default=0.98)
-    parser.add_argument('--val_ratio', type=float, default=0.01)
-    parser.add_argument('--test_ratio', type=float, default=0.01)
+    parser.add_argument('--chronos_model', type=str, default='tiny', choices=['tiny', 'mini', 'small', 'base', 'large', 'finetuned_tiny_1','finetuned_tiny_2','finetuned_small_1','finetuned_small_2'])
+    parser.add_argument('--context_hours', type=int, default=24)
+    parser.add_argument('--prediction_hours', type=int, default=3)
+    parser.add_argument('--train_ratio', type=float, default=0.9)
+    parser.add_argument('--val_ratio', type=float, default=0.05)
+    parser.add_argument('--test_ratio', type=float, default=0.05)
     parser.add_argument('--per_device_train_batch_size', type=int, default=128)
     parser.add_argument('--per_device_eval_batch_size', type=int, default=32)
     parser.add_argument('--learning_rate', type=float, default=0.001)
-    parser.add_argument('--lr_scheduler', type=str, default='cosine')
-    parser.add_argument('--log_steps', type=int, default=20)
+    parser.add_argument('--lr_scheduler', type=str, default='polynomial')
+    parser.add_argument('--log_steps', type=int, default=10)
     parser.add_argument('--new_model_name', type=str, default=None)
     parser.add_argument('--push_to_hub', type=bool, default=False)
-    parser.add_argument('--early_stopping_patience', type=int, default=4)
-    parser.add_argument('--num_epochs', type=int, default=1000)
+    parser.add_argument('--early_stopping_patience', type=int, default=3)
+    parser.add_argument('--num_epochs', type=int, default=100)
+    parser.add_argument('--dataset', type=str, default='ShanghaiT1DM')
+    parser.add_argument('--train_with_lora', type=bool, default=False)
+    parser.add_argument('--lora_option', type=int, default=1)
     
     args = parser.parse_args()
 
@@ -237,5 +318,8 @@ if __name__ == '__main__':
         new_model_name=args.new_model_name,
         push_to_hub=args.push_to_hub,
         early_stopping_patience=args.early_stopping_patience,
-        num_epochs=args.num_epochs
+        num_epochs=args.num_epochs,
+        dataset=args.dataset,
+        train_with_lora=args.train_with_lora,
+        lora_option=args.lora_option,
     )

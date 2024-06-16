@@ -44,12 +44,12 @@ class TimeSeriesDataset(Dataset):
             cumulative_length += current_length
         raise IndexError("Index out of range in dataset")
 
-def save_log_history(log_history):
-    output_path = f"log_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+def save_log_history(log_history,timestamp):
+    output_path = f"log_history_{timestamp}.json"
     with open(output_path, 'w') as f:
         json.dump(log_history, f, indent=4)
 
-def plot_learning_rate(log_history, args):
+def plot_learning_rate(log_history, args,timestamp):
     lr = []
     steps = []
 
@@ -65,7 +65,7 @@ def plot_learning_rate(log_history, args):
     plt.plot(steps, lr, label='Learning Rate')
     plt.xlabel('Epochs')
     plt.ylabel('Learning Rate')
-    plt.title(f'Learning Rate Over Time - Chronos Model: {args.chronos_model}\n'
+    plt.title(f'Learning Rate Over Time - Chronos Model: {args.chronos_model}, {args.dataset} Dataset\n'
               f'Train Batch Size: {args.per_device_train_batch_size}, Initial LR: {args.learning_rate}, '
               f'Context Hours: {args.context_hours}, Prediction Hours: {args.prediction_hours}')
 
@@ -80,10 +80,10 @@ def plot_learning_rate(log_history, args):
 
     plt.xticks(ticks=xticks, labels=xticks)
 
-    plot_filename = f"lr_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    plot_filename = f"lr_{timestamp}.png"
     plt.savefig(plot_filename)
 
-def plot_loss(log_history, args):
+def plot_loss(log_history, args, timestamp):
     train_loss = []
     eval_loss = []
     steps = []
@@ -103,8 +103,8 @@ def plot_loss(log_history, args):
     plt.plot(steps, eval_loss, label='Evaluation Loss')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
-    plt.title(f'Training and Evaluation Loss Over Time - Chronos Model: {args.chronos_model}\n'
-              f'Train Batch Size: {args.per_device_train_batch_size}, Learning Rate: {args.learning_rate}, '
+    plt.title(f'Training and Evaluation Loss Over Time - Chronos Model: {args.chronos_model}, {args.dataset} Dataset\n'
+              f'Train Batch Size: {args.per_device_train_batch_size}, Initial LR: {args.learning_rate}, '
               f'Context Hours: {args.context_hours}, Prediction Hours: {args.prediction_hours}')
 
     plt.legend()
@@ -118,19 +118,17 @@ def plot_loss(log_history, args):
 
     plt.xticks(ticks=xticks, labels=xticks)
 
-    plot_filename = f"loss_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    plot_filename = f"loss_{timestamp}.png"
     plt.savefig(plot_filename)
 
 
-def create_dataloaders(train_ratio,val_ratio,test_ratio,context_window,prediction_window, chronos_config):
+def create_dataloaders(dataset_name, data, split_ratios,context_window,prediction_window, chronos_config):
 
     # Load the datasets
-    print("Loading datasets...")
-    t1_dataset_data, t1_dataset_file_names = read_dataset()
-    t2_dataset_data, t2_dataset_file_names = read_dataset("T2")
-    data = t1_dataset_data + t2_dataset_data
+    print(f"Loading {dataset_name} datasets...")
 
     train_data, val_data, test_data = [], [], []
+    train_ratio,val_ratio,test_ratio = split_ratios
 
     assert(train_ratio+val_ratio+test_ratio==1)
 
