@@ -1,12 +1,12 @@
-context_length: 192
+context_length: 96
 dataloader_num_workers: 1
 gradient_accumulation_steps: 1
 learning_rate: 0.001
 log_steps: 500
-lr_scheduler_type: cosine
+lr_scheduler_type: polynomial
 max_missing_prop: 0.9
 max_steps: 200000
-min_past: 192
+min_past: 96
 model_id: amazon/chronos-t5-tiny
 model_type: seq2seq
 n_tokens: 4096
@@ -14,7 +14,7 @@ num_samples: 20
 optim: adamw_torch_fused
 output_dir: ./finetuned_model/
 per_device_train_batch_size: 32
-prediction_length: 24
+prediction_length: 12
 probability:
 - 1.0
 random_init: false
