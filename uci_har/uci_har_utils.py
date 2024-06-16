@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 
 def read_dataset():
@@ -46,6 +47,13 @@ def read_dataset():
 
     X_test = X_test.values.reshape(-1, X_test.shape[1])
     y_test = y_test.apply(map_classes)
+
+    plt.figure(figsize=(8, 5))
+    y_train.value_counts().plot(kind='bar', color='#FF7F0E')
+    plt.xlabel('Activity')
+    plt.ylabel('Count')
+    plt.title('Distribution of HAR dataset activities')
+    plt.savefig('har_label_distribution.png')
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 
